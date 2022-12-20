@@ -4,8 +4,7 @@ from django.contrib.auth import get_user_model
 from django.core.files.base import ContentFile
 from posts.models import Comment, Follow, Group, Post
 from rest_framework import serializers
-from rest_framework.relations import SlugRelatedField
-
+from rest_framework.validators import UniqueTogetherValidator
 User = get_user_model()
 
 
@@ -20,7 +19,11 @@ class Base64ImageField(serializers.ImageField):
 
 
 class PostSerializer(serializers.ModelSerializer):
-    author = SlugRelatedField(slug_field='username', read_only=True)
+    author = serializers.SlugRelatedField(
+        default=serializers.CurrentUserDefault(),
+        slug_field='username',
+        queryset=User.objects.all()
+    )
     image = Base64ImageField(required=False, allow_null=True)
     text = serializers.CharField(max_length=500)
 
@@ -31,10 +34,12 @@ class PostSerializer(serializers.ModelSerializer):
 
 class CommentSerializer(serializers.ModelSerializer):
     author = serializers.SlugRelatedField(
-        read_only=True, slug_field='username'
+        slug_field='username',
+        read_only=True
     )
+
     post = serializers.PrimaryKeyRelatedField(
-        read_only=True,
+        read_only=True
     )
 
     class Meta:
@@ -63,6 +68,12 @@ class FollowSerializer(serializers.ModelSerializer):
     class Meta:
         fields = ('user', 'following')
         model = Follow
+        validators = [
+            UniqueTogetherValidator(
+                queryset=Follow.objects.all(),
+                fields=['user', 'following']
+            )
+        ]
 
     def validate(self, data):
         if data['user'] == data['following']:
